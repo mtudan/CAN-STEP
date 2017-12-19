@@ -77,14 +77,21 @@ static void MX_NVIC_Init(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+/* An array to hold handles to the created timers. */
+TimerHandle_t xTimer;
 
+/* Define a callback function that will be used by timer instances.
+   The callback function toggles LED when the associated timer expires. */
+void vTimerCallback( TimerHandle_t xTimer )
+{
+	HAL_GPIO_TogglePin(GPIOB, DIR_Pin);
+}
 /* USER CODE END 0 */
 
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-
+	
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -104,6 +111,8 @@ int main(void)
   MX_NVIC_Init();
 
   /* USER CODE BEGIN 2 */
+	__HAL_CAN_ENABLE_IT(&hcan, CAN_IT_FMP0);
+	
 	CAN_TX_Msg.RTR = CAN_RTR_DATA;
 	CAN_TX_Msg.IDE = CAN_ID_STD;
 	CAN_TX_Msg.StdId = 1280;
@@ -121,6 +130,32 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
+//	xTimer = xTimerCreate( /* Just a text name, not used by the RTOS kernel. */
+//													"Timer",
+//													/* The timer period in ticks, must be greater than 0. */
+//													100,
+//													/* The timers will auto-reload themselves when they expire. */
+//													pdTRUE,
+//													/* The ID is used to store a count of the number of times the timer has expired, which is initialised to 0. */
+//													(void*) 0,
+//													/* Each timer calls the same callback when it expires. */
+//													vTimerCallback
+//												);
+
+//	if (xTimer == NULL)
+//	{
+//		/* The timer was not created. */
+//	}
+//	else
+//	{
+//		/* Start the timer.  No block time is specified, and
+//		even if one was it would be ignored because the RTOS
+//		scheduler has not yet been started. */
+//		if (xTimerStart(xTimer, 0) != pdPASS)
+//		{
+//			/* The timer could not be set into the Active state. */
+//		}
+//	}
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the thread(s) */
@@ -141,14 +176,13 @@ int main(void)
   osKernelStart();
   
   /* We should never get here as control is now taken by the scheduler */
-	/*##-2- Start the Reception process and enable reception interrupt #########*/
-  
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
   /* USER CODE END WHILE */
-		
+
   /* USER CODE BEGIN 3 */
 		
 		// One way rotation		
@@ -163,34 +197,40 @@ int main(void)
   /* USER CODE END 3 */
 }
 
+/* StartDefaultTask function */
+void StartDefaultTask(void const * argument)
+{
+  /* USER CODE BEGIN 5 */
+//	if (HAL_CAN_Receive_IT(&hcan, CAN_FIFO0) != HAL_OK)
+//  {
+//    /* Reception Error */
+//    Error_Handler();
+//  }
+  /* Infinite loop */
+  for(;;)
+  {
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		HAL_CAN_Transmit_IT(&hcan);
+    osDelay(1000);
+  }
+  /* USER CODE END 5 */ 
+}
+
 void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef *hcan)
 {
-  if (CAN_RX_Msg.StdId == 1024)
+  if ((CAN_RX_Msg.StdId == 0x400) || (CAN_RX_Msg.StdId == 0x600))
   {
     HAL_GPIO_TogglePin(GPIOB, STEP_Pin);
   }
+	
+	HAL_GPIO_TogglePin(GPIOB, DIR_Pin);
 
-  /* Receive */
-  if (HAL_CAN_Receive_IT(hcan, CAN_FIFO0) != HAL_OK)
-  {
-    /* Reception Error */
-    Error_Handler();
-  }
-}
-
-/** NVIC Configuration
-*/
-static void MX_NVIC_Init(void)
-{
-  /* USB_LP_CAN1_RX0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
-  /* USB_HP_CAN1_TX_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(USB_HP_CAN1_TX_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
-  /* USART1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(USART1_IRQn);
+  /* Receive */ // ---> not used if iterrupt routine from "stm32f1xx_it.c" is used!!!
+//  if (HAL_CAN_Receive_IT(hcan, CAN_FIFO0) != HAL_OK)
+//  {
+//    /* Reception Error */
+//    Error_Handler();
+//  }
 }
 
 /* CAN init function */
@@ -199,9 +239,9 @@ static void MX_CAN_Init(void)
 	hcan.pTxMsg = &CAN_TX_Msg;
 	hcan.pRxMsg = &CAN_RX_Msg;
 	CAN_FilterConfTypeDef  sFilterConfig;
-	
+
   hcan.Instance = CAN1;
-  hcan.Init.Mode = CAN_MODE_NORMAL;
+	hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.Prescaler = 4;					//	.---> calculated for 125kbps CAN bus using "bittiming.can-wiki.info" calculator
   hcan.Init.SJW = CAN_SJW_1TQ; 			// -|
   hcan.Init.BS1 = CAN_BS1_13TQ;			// -|
@@ -237,6 +277,66 @@ static void MX_CAN_Init(void)
   }
 }
 
+/** System Clock Configuration
+*/
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
+    /**Initializes the CPU, AHB and APB busses clocks 
+    */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = 16;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+	
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+    /**Initializes the CPU, AHB and APB busses clocks 
+    */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+    /**Configure the Systick interrupt time 
+    */
+  HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+
+    /**Configure the Systick 
+    */
+  HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
+
+  /* SysTick_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(SysTick_IRQn, 15, 0);
+}
+
+/** NVIC Configuration
+*/
+static void MX_NVIC_Init(void)
+{
+  /* USB_LP_CAN1_RX0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
+  /* USB_HP_CAN1_TX_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(USB_HP_CAN1_TX_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
+  /* USART1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(USART1_IRQn);
+}
+
 /* USART1 init function */
 static void MX_USART1_UART_Init(void)
 {
@@ -248,8 +348,8 @@ static void MX_USART1_UART_Init(void)
   huart1.Init.Mode = UART_MODE_TX_RX;
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-	
-  if (HAL_UART_Init(&huart1) != HAL_OK)
+ 
+	if (HAL_UART_Init(&huart1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -291,72 +391,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
-/** System Clock Configuration
-*/
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct;
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-
-    /**Initializes the CPU, AHB and APB busses clocks 
-    */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = 16;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-    /**Initializes the CPU, AHB and APB busses clocks 
-    */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-    /**Configure the Systick interrupt time 
-    */
-  HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-
-    /**Configure the Systick 
-    */
-  HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-
-  /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 15, 0);
-}
-
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
-/* StartDefaultTask function */
-void StartDefaultTask(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-	if (HAL_CAN_Receive_IT(&hcan, CAN_FIFO0) != HAL_OK)
-  {
-    /* Reception Error */
-    Error_Handler();
-  }
-  /* Infinite loop */
-  for(;;)
-  {
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		HAL_CAN_Transmit_IT(&hcan);
-    osDelay(1000);
-  }
-  /* USER CODE END 5 */ 
-}
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -410,6 +447,7 @@ void assert_failed(uint8_t* file, uint32_t line)
   /* User can add his own implementation to report the file name and line number,
     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
+
 }
 
 #endif
