@@ -45,57 +45,32 @@
 #include "stm32f1xx_hal.h"
 #include "cmsis_os.h"
 
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan;
-
 UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
 
-/* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 static CanTxMsgTypeDef CAN_TX_Msg;
 static CanRxMsgTypeDef CAN_RX_Msg;
-/* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void Error_Handler(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN_Init(void);
 static void MX_USART1_UART_Init(void);
-void StartDefaultTask(void const * argument);
 static void MX_NVIC_Init(void);
+void Error_Handler(void);
+void StartDefaultTask(void const * argument);
 
-/* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-
-/* USER CODE END PFP */
-
-/* USER CODE BEGIN 0 */
-/* An array to hold handles to the created timers. */
-TimerHandle_t xTimer;
-
-/* Define a callback function that will be used by timer instances.
-   The callback function toggles LED when the associated timer expires. */
-void vTimerCallback( TimerHandle_t xTimer )
-{
-	HAL_GPIO_TogglePin(GPIOB, DIR_Pin);
-}
-/* USER CODE END 0 */
+void CAN_EN_RxIRQ(void);
+extern void startStepperTimer(void);
+extern void createStepperTask(void);
 
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-	
-  /* USER CODE END 1 */
-
-  /* MCU Configuration----------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
@@ -109,16 +84,7 @@ int main(void)
 
   /* Initialize interrupts */
   MX_NVIC_Init();
-
-  /* USER CODE BEGIN 2 */
-	__HAL_CAN_ENABLE_IT(&hcan, CAN_IT_FMP0);
-	
-	CAN_TX_Msg.RTR = CAN_RTR_DATA;
-	CAN_TX_Msg.IDE = CAN_ID_STD;
-	CAN_TX_Msg.StdId = 1280;
-	CAN_TX_Msg.DLC = 1;
-	CAN_TX_Msg.Data[0] = 71;
-  /* USER CODE END 2 */
+	CAN_EN_RxIRQ();
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -130,71 +96,25 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
-//	xTimer = xTimerCreate( /* Just a text name, not used by the RTOS kernel. */
-//													"Timer",
-//													/* The timer period in ticks, must be greater than 0. */
-//													100,
-//													/* The timers will auto-reload themselves when they expire. */
-//													pdTRUE,
-//													/* The ID is used to store a count of the number of times the timer has expired, which is initialised to 0. */
-//													(void*) 0,
-//													/* Each timer calls the same callback when it expires. */
-//													vTimerCallback
-//												);
-
-//	if (xTimer == NULL)
-//	{
-//		/* The timer was not created. */
-//	}
-//	else
-//	{
-//		/* Start the timer.  No block time is specified, and
-//		even if one was it would be ignored because the RTOS
-//		scheduler has not yet been started. */
-//		if (xTimerStart(xTimer, 0) != pdPASS)
-//		{
-//			/* The timer could not be set into the Active state. */
-//		}
-//	}
+	startStepperTimer();
+	createStepperTask();
   /* USER CODE END RTOS_TIMERS */
-
+	
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
+	
+	/* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
-
+	
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
- 
-
+	
   /* Start scheduler */
   osKernelStart();
-  
-  /* We should never get here as control is now taken by the scheduler */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-  /* USER CODE END WHILE */
-
-  /* USER CODE BEGIN 3 */
-		
-		// One way rotation		
-//		for (int i = 0; i < 400; i++)
-//		{
-//			HAL_GPIO_WritePin(GPIOB, STEP_Pin, GPIO_PIN_SET);
-//			HAL_Delay(1);
-//			HAL_GPIO_WritePin(GPIOB, STEP_Pin, GPIO_PIN_RESET);
-//			HAL_Delay(1);
-//		}
-  }
-  /* USER CODE END 3 */
 }
 
 /* StartDefaultTask function */
@@ -209,7 +129,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+//		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 		HAL_CAN_Transmit_IT(&hcan);
     osDelay(1000);
   }
@@ -220,11 +140,9 @@ void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef *hcan)
 {
   if ((CAN_RX_Msg.StdId == 0x400) || (CAN_RX_Msg.StdId == 0x600))
   {
-    HAL_GPIO_TogglePin(GPIOB, STEP_Pin);
+    HAL_GPIO_TogglePin(GPIOB, DIR_Pin);
   }
 	
-	HAL_GPIO_TogglePin(GPIOB, DIR_Pin);
-
   /* Receive */ // ---> not used if iterrupt routine from "stm32f1xx_it.c" is used!!!
 //  if (HAL_CAN_Receive_IT(hcan, CAN_FIFO0) != HAL_OK)
 //  {
@@ -233,12 +151,23 @@ void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef *hcan)
 //  }
 }
 
+void CAN_EN_RxIRQ(void)
+{
+	__HAL_CAN_ENABLE_IT(&hcan, CAN_IT_FMP0);
+}
+
 /* CAN init function */
 static void MX_CAN_Init(void)
 {
 	hcan.pTxMsg = &CAN_TX_Msg;
 	hcan.pRxMsg = &CAN_RX_Msg;
 	CAN_FilterConfTypeDef  sFilterConfig;
+	
+	CAN_TX_Msg.RTR = CAN_RTR_DATA;
+	CAN_TX_Msg.IDE = CAN_ID_STD;
+	CAN_TX_Msg.StdId = 1280;
+	CAN_TX_Msg.DLC = 1;
+	CAN_TX_Msg.Data[0] = 71;
 
   hcan.Instance = CAN1;
 	hcan.Init.Mode = CAN_MODE_NORMAL;
@@ -259,6 +188,7 @@ static void MX_CAN_Init(void)
   }
 	
 	/*##-2- Configure the CAN Filter ###########################################*/
+	// Mandatory - without filter RX won't work at all!
   sFilterConfig.FilterNumber = 0;
   sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
   sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
@@ -348,8 +278,8 @@ static void MX_USART1_UART_Init(void)
   huart1.Init.Mode = UART_MODE_TX_RX;
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
- 
-	if (HAL_UART_Init(&huart1) != HAL_OK)
+	
+  if (HAL_UART_Init(&huart1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -391,10 +321,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
-/* USER CODE BEGIN 4 */
-
-/* USER CODE END 4 */
-
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM1 interrupt took place, inside
@@ -408,7 +334,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 /* USER CODE BEGIN Callback 0 */
 
 /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1) {
+  if (htim->Instance == TIM1)
+	{
     HAL_IncTick();
   }
 /* USER CODE BEGIN Callback 1 */
@@ -447,17 +374,8 @@ void assert_failed(uint8_t* file, uint32_t line)
   /* User can add his own implementation to report the file name and line number,
     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
-
 }
 
 #endif
-
-/**
-  * @}
-  */ 
-
-/**
-  * @}
-*/ 
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

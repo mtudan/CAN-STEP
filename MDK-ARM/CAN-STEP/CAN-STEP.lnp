@@ -27,6 +27,7 @@
 "can-step\main.o"
 "can-step\freertos.o"
 "can-step\stm32f1xx_hal_timebase_tim.o"
+"can-step\stepper.o"
 "can-step\startup_stm32f103xb.o"
 "can-step\system_stm32f1xx.o"
 --library_type=microlib --strict --scatter "CAN-STEP\CAN-STEP.sct"
