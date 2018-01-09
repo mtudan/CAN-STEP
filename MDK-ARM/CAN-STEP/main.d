@@ -1,4 +1,5 @@
 can-step\main.o: ../Src/main.c
+can-step\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 can-step\main.o: ../Inc/main.h
 can-step\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
 can-step\main.o: ../Inc/stm32f1xx_hal_conf.h

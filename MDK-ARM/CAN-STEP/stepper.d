@@ -1,4 +1,5 @@
 can-step\stepper.o: ..\Src\stepper.c
+can-step\stepper.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 can-step\stepper.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
 can-step\stepper.o: ../Inc/stm32f1xx_hal_conf.h
 can-step\stepper.o: ../Inc/main.h
@@ -40,3 +41,5 @@ can-step\stepper.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrapp
 can-step\stepper.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 can-step\stepper.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 can-step\stepper.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
+can-step\stepper.o: ../Inc/can.h
+can-step\stepper.o: ../Inc/stepper.h

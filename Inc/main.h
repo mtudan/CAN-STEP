@@ -53,10 +53,12 @@
 
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
-#define STEP_Pin GPIO_PIN_12
-#define STEP_GPIO_Port GPIOB
-#define DIR_Pin GPIO_PIN_13
+#define DIR_Pin GPIO_PIN_12
 #define DIR_GPIO_Port GPIOB
+#define STEP_Pin GPIO_PIN_13
+#define STEP_GPIO_Port GPIOB
+#define CAN_STB_Pin GPIO_PIN_15
+#define CAN_STB_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
