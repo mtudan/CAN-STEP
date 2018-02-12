@@ -73,7 +73,7 @@ void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef *hcan)
 {
 	xQueueSendFromISR(xCanRxQueue, &CAN_RX_Msg, NULL);
 	
-  /* Receive */ // ---> not used if iterrupt routine from "stm32f1xx_it.c" is used!!!
+  /* Receive */ // ---> not used if interrupt routine from "stm32f1xx_it.c" is used!!!
 //  if (HAL_CAN_Receive_IT(hcan, CAN_FIFO0) != HAL_OK)
 //  {
 //    /* Reception Error */
